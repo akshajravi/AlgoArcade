@@ -5,10 +5,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from algoarcade.backends.base import Button
+from algoarcade.backends.base import Button, read_u8
 from algoarcade.backends.pyboy import PyBoyBackend
 from algoarcade.games.super_mario_land.reader import (
-    SCROLL_X,
+    LEVEL_BLOCK,
+    MARIO_X,
     SuperMarioLandReader,
     SuperMarioLandState,
 )
@@ -58,9 +59,14 @@ def test_reader_matches_the_pyboy_wrapper_over_1000_random_steps(backend: PyBoyB
         if state.level_progress != wrapper.level_progress:
             # The wrapper takes the scroll PyBoy drew at scanline 16. While the screen scrolls,
             # that is one frame behind hScrollX (0xFFA4), and no RAM byte holds it. A difference
-            # is allowed only on such a step.
+            # is allowed only if the reader's formula with the drawn scroll gives the wrapper's value.
             drawn_scroll = pyboy.screen.tilemap_position_list[16][0]
-            lagging = drawn_scroll != backend.read(SCROLL_X, 1)[0]
+            with_drawn_scroll = (
+                read_u8(backend, LEVEL_BLOCK) * 16
+                + (drawn_scroll - 7) % 16
+                + read_u8(backend, MARIO_X)
+            )
+            lagging = with_drawn_scroll == wrapper.level_progress
             (explained if lagging else unexplained).append(
                 (step, state.level_progress, wrapper.level_progress)
             )
